@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Video.js A–B Loop Demo</title>
+  <style>
+    body { margin: 0 auto; padding: 40px 20px; max-width: 960px; background: #141820; color: #f5f7fa; font: 16px/1.6 system-ui, sans-serif; }
+    h1 { line-height: 1.2; }
+    button { padding: 10px 16px; margin: 8px 8px 8px 0; cursor: pointer; }
+    #state { font-family: monospace; }
+    a { color: #ffda65; }
+  </style>
+</head>
+<body>
+  <h1>Video.js A–B Loop</h1>
+  <p>Press A–B in the player, then click two points on the progress bar. Press it again to clear. The adjacent repeat button loops the entire video.</p>
+  <video id="demo" class="video-js vjs-big-play-centered" controls preload="auto" playsinline>
+    <source src="https://vjs.zencdn.net/v/oceans.mp4" type="video/mp4">
+  </video>
+  <p>Keyboard: activate A–B, seek with the arrow keys, then press Enter to mark each point. Escape clears the range.</p>
+  <button id="range" disabled>Set range: 5–10 seconds</button>
+  <button id="clear">Clear range</button>
+  <button id="repeat" disabled>Toggle full-video repeat</button>
+  <p id="state" role="status">Waiting for video metadata…</p>
+  <p><a href="https://github.com/travelonium/videojs-ab-loop">Source and documentation</a></p>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
