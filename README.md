@@ -4,6 +4,8 @@ Select two points on the **existing Video.js progress bar** and repeat the range
 
 Built for **Video.js 8.21+ (8.x)**. No React dependency. MIT licensed.
 
+![Video.js player with a highlighted A–B loop from 5 to 10 seconds and loop controls in the bottom bar](https://raw.githubusercontent.com/travelonium/videojs-ab-loop/master/docs/images/ab-loop.png)
+
 ## Features
 
 - A and B markers and a highlighted range on the main timeline.
