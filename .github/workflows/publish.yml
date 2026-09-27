@@ -3,12 +3,18 @@ name: Publish to npm
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing published GitHub release tag to publish to npm
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: npm-publish-${{ github.event.release.tag_name }}
+  group: npm-publish-${{ github.event.release.tag_name || inputs.tag }}
   cancel-in-progress: false
 
 jobs:
@@ -18,9 +24,24 @@ jobs:
       contents: read
       id-token: write
     steps:
+      - name: Resolve published release
+        id: metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/release.json"
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { readFileSync, appendFileSync } from 'node:fs';
+          const release = JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/release.json`, 'utf8'));
+          assert.equal(release.draft, false, 'Only published releases can be deployed.');
+          assert.equal(release.tag_name, process.env.RELEASE_TAG);
+          appendFileSync(process.env.GITHUB_OUTPUT, `prerelease=${release.prerelease}\n`);
+          JS
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
           persist-credentials: false
       - uses: actions/setup-node@v6
         with:
@@ -29,9 +50,33 @@ jobs:
           package-manager-cache: false
       - name: Install npm with trusted publishing support
         run: npm install --global npm@11
-      - name: Validate release version
+      # Keep preparation here so manual retries also work for older tags whose
+      # source tree does not contain the updated release scripts.
+      - name: Prepare version from release tag
         id: release
-        run: node scripts/check-release.mjs
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          RELEASE_PRERELEASE: ${{ steps.metadata.outputs.prerelease }}
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+          const version = process.env.RELEASE_TAG.replace(/^v/, '');
+          assert.match(version, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/, 'Use a semantic version tag, e.g. 1.0.1 or v1.0.1.');
+          const prerelease = version.includes('-');
+          assert.equal(process.env.RELEASE_PRERELEASE, String(prerelease),
+            'Mark prerelease versions as prereleases in GitHub.');
+          // npm validates SemVer and updates both package files without a commit/tag.
+          execFileSync('npm', ['version', version, '--no-git-tag-version', '--ignore-scripts', '--allow-same-version'], { stdio: 'inherit' });
+          const path = 'src/index.js';
+          const source = readFileSync(path, 'utf8');
+          const assignment = /ABLoop\.VERSION = '[^']+';/g;
+          assert.equal([...source.matchAll(assignment)].length, 1, 'Expected one plugin version assignment.');
+          writeFileSync(path, source.replace(assignment, `ABLoop.VERSION = '${version}';`));
+          appendFileSync(process.env.GITHUB_OUTPUT, `dist_tag=${prerelease ? 'next' : 'latest'}\n`);
+          console.log(`Prepared package and plugin version ${version}.`);
+          JS
       - run: npm ci
       # prepublishOnly runs lint, tests, build and distribution checks.
       # prepack builds the tarball. Authentication uses npm's trusted publisher.
